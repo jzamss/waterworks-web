@@ -35,47 +35,26 @@ const OnlineWaterworksBilling = (props) => {
 
   const { partner, page, onCancel, onSubmit } = props;
 
+  const getBilling = async (billOptions = {}) => {
+    const svc = await Service.lookupAsync(`${partner.id}:WaterworksOnlineBillingService`)
+    const params = { txntype, refno, ...billOptions }
+    return await svc.getBilling(params)
+  }
+
   const loadBill = (billOptions = {}) => {
     setLoading(true);
     setError(null);
-
-    // TODO: remove mock data
-    const bill = {
-      acctno: "WB-00001",
-      acctname: "NAZARENO, ELMO",
-      lastbillperiod: "May 20, 2020",
-      classification: "RESIDENTIAL",
-      billperiod: "04-20-2020 - 05-20-2020",
-      prevreading: 1000,
-      currentreading: 1030,
-      consumption: 30,
-      amount: 500,
-      details: [
-        { particulars: "PREV BAL (APRIL 2020)", amount: 200 },
-        { particulars: "WATER SALES", amount: 300 }
-      ]
-    };
-
-    setBill(bill);
-    setBarcode(`51030:${bill.acctno}`);
-    setMode("viewbill");
-    setLoading(false);
-
-    // const svc = Service.lookup(`${partner.id}:EPaymentService`);
-    // const params = { txntype, refno, ...billOptions };
-
-    // svc.getBilling(params, (err, bill) => {
-    //   if (err) {
-    //     setError(err);
-    //   } else {
-    //     setBill(bill.info);
-    //     setBarcode(`51030:${bill.info.billno}`);
-    //     setMode("viewbill");
-    //     setLoading(false);
-    //   }
-    //   setLoading(false);
-    // });
-  };
+    getBilling(billOptions).then(bill => {
+      console.log("BILL", bill)
+      setBill(bill);
+      setBarcode(`51030:${bill.billno}`);
+      setMode("viewbill");
+      setLoading(false);
+    }).catch(err => {
+      setError(err.toString());
+      setLoading(false)
+    })
+  }
 
   const payOptionHandler = (billOption) => {
     setShowPayOption(false);
@@ -97,9 +76,12 @@ const OnlineWaterworksBilling = (props) => {
       paidby: bill.paidby,
       paidbyaddress: bill.paidbyaddress,
       amount: bill.amount,
+      info: {txntype },
       paymentdetails: `Wateworks Account No. ${bill.acctno}`
     });
   };
+
+  const errorMsg = error || props.error;
 
   return (
     <React.Fragment>
@@ -107,7 +89,7 @@ const OnlineWaterworksBilling = (props) => {
       <Panel visibleWhen={mode === "initial"}>
         <Label labelStyle={styles.subtitle}>Initial Information</Label>
         <Spacer />
-        <Error msg={error} />
+        <Error msg={errorMsg} />
         <Text
           caption="Account No."
           name="refno"
@@ -134,17 +116,24 @@ const OnlineWaterworksBilling = (props) => {
         <FormPanel context={bill} handler={setBill}>
           <Text name="acctno" caption="Account No." readOnly />
           <Text name="acctname" caption="Account Name" readOnly />
-          <Text name="classification" caption="Classification" readOnly />
+          <Text name="address.text" caption="Address" readOnly />
+          <Text name="classificationid" caption="Classification" readOnly />
+          <Text name="billno" caption="Last Bill Period" readOnly />
           <Panel row>
-            <Text name="prevreading" caption="Previous Reading" readOnly />
-            <Text name="currentreading" caption="Current Reading" readOnly />
-            <Text name="consumption" caption="Consumption (cu.m)" readOnly />
+            <Text name="monthname" caption="Bill Month" readOnly />
+            <Text name="year" caption="Bill Year" readOnly />
           </Panel>
-          <Text name="lastbillperiod" caption="Last Bill Period" readOnly />
+          <Panel row>
+            <Text name="meter.size.title" caption="Meter Size" readOnly />
+            <Text name="consumption.prev.reading" caption="Previous Reading" readOnly />
+            <Text name="consumption.reading" caption="Current Reading" readOnly />
+            <Text name="consumption.volume" caption="Consumption" readOnly />
+          </Panel>
           <Spacer />
           <h4>Bill Details</h4>
-          <Table items={bill.details} showPagination={false}>
-            <TableColumn expr="particulars" caption="Particulars" />
+          <Table items={bill.items} showPagination={false}>
+            <TableColumn expr="item.title" caption="Account" />
+            <TableColumn expr="remarks" caption="Particulars" />
             <TableColumn
               expr={item =>  currencyFormat(item.amount)}
               caption="Amount Due"
